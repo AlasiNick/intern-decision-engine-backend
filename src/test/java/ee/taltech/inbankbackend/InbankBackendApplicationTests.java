@@ -8,6 +8,7 @@ class InbankBackendApplicationTests {
 
     @Test
     void contextLoads() {
+
     }
 
 }

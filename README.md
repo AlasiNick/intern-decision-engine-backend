@@ -37,6 +37,7 @@ The request body must contain the following fields:
 - personalCode: The customer's personal ID code.
 - loanAmount: The requested loan amount.
 - loanPeriod: The requested loan period.
+- country: The cunstomer's residence
 
 **Request example:**
 
@@ -44,7 +45,8 @@ The request body must contain the following fields:
 {
 "personalCode": "50307172740",
 "loanAmount": "5000",
-"loanPeriod": "24"
+"loanPeriod": "24",
+"country": "Estonia"
 }
 ```
 
@@ -63,6 +65,63 @@ The response body contains the following fields:
 "errorMessage": null
 }
 ```
+
+## Loan Decision Logic
+
+The decision engine uses the following business rules:
+
+### ✅ Credit Modifier
+
+A customer's **credit modifier** is determined by the **last four digits** of their personal code:
+
+- `0000–2499` → ❌ Denied (customer has debt).
+- `2500–4999` → Segment 1 → Modifier: 100
+- `5000–7499` → Segment 2 → Modifier: 300
+- `7500–9999` → Segment 3 → Modifier: 1000
+
+### ✅ Credit Score Calculation
+
+To determine loan eligibility, the system calculates the **credit score**:
+
+```
+creditScore = ((creditModifier / loanAmount) * loanPeriod) / 10
+```
+
+- If `creditScore ≥ 0.1` → ✅ Approved
+- If `creditScore < 0.1` → ❌ Try alternative loan period (see below)
+
+### ✅ Loan Period Adjustment
+
+If the credit score is too low for the requested period, the system will **automatically increase the loan period** (up to 48 months) to try and **find a valid credit score and maximum possible loan**.
+
+- The system always returns the **maximum amount** the customer is eligible for.
+- If no valid configuration is found, the request is rejected.
+
+### ✅ Age-Based Restrictions
+
+The service also validates the customer's age using the personal code and provided country:
+
+- **Minimum age**: 18 years.
+- **Maximum age**: Calculated as:
+
+```
+maxAllowedAge = (lifeExpectancy of country) - (loanPeriod in years)
+```
+
+If the customer is:
+- Younger than 18 → ❌ Rejected.
+- Older than the maximum allowed → ❌ Rejected.
+
+### Country-specific life expectancies:
+
+| Country     | Life Expectancy |
+|-------------|-----------------|
+| Estonia     | 78              |
+| Latvia      | 75              |
+| Lithuania   | 76              |
+| Default     | 82              |
+
+> Note: Only Baltic countries are supported for age validation.
 
 ## Error Handling
 
